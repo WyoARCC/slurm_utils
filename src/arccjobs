@@ -1,0 +1,120 @@
+#!/apps/sys/python/python-2.7.8/bin/python
+#
+# New arccjobs command that can summarize running jobs
+# in specialized orders like strictly user, account only
+# qos breakdown, etc. 
+#
+
+#
+# Import necessary modules
+#
+import sys,os
+from pwd import getpwnam,getpwuid
+import time
+import argparse
+
+import pyslurm
+
+# Get the current time
+CURR_TIME = int(time.time())
+
+# Get console dims
+def terminal_size():
+    import fcntl, termios, struct
+    h, w, hp, wp = struct.unpack('HHHH',
+        fcntl.ioctl(0, termios.TIOCGWINSZ,
+        struct.pack('HHHH', 0, 0, 0, 0)))
+    return w, h
+CONS_WIDTH,CONS_HEIGHT = terminal_size()
+CONS_WIDTH -= 1
+
+# Basic "summary" class for holding the necessary data
+class JobsSummary(object):
+    def __init__(self):
+        self.njobs = {"pending":0,"running":0}
+        self.ncpus = {"pending":0,"running":0}
+        self.wtime = {"pending":0,"running":0}
+
+    def addJob(self,state,ncpus,wtime):
+        k = state
+        self.njobs[k] += 1
+        self.ncpus[k] += ncpus
+        self.wtime[k] += wtime # Can be pending or running
+        return None
+
+    def pprint(self):
+        print(self.njobs)
+        print(self.ncpus)
+        print(self.wtime)
+        return None
+
+    def __str__(self):
+        x = "{rjobs:5d} {rcpus:5d} {rtime:9.2f} {pjobs:5d} {pcpus:5d} {ptime:9.2f}".format(
+                rjobs=self.njobs["running"], rcpus=self.ncpus["running"], rtime=self.wtime["running"],
+                pjobs=self.njobs["pending"], pcpus=self.ncpus["pending"], ptime=self.wtime["pending"] )
+        return x
+
+def printHeader(title="blah"):
+    print(CONS_WIDTH*'-')
+    print(title.center(CONS_WIDTH,' '))
+    print(CONS_WIDTH*'-')
+
+def printTotals(total_string = "blah"):
+    print(CONS_WIDTH*'-')
+    print(total_string)
+    print(CONS_WIDTH*'-')
+
+# This can no be renamed the user summary :)
+def userSummary(json=False):
+
+    cluster = JobsSummary()
+
+    user_summary = {}
+    users = {};
+
+    jobs = pyslurm.job().get()
+    for id,job in jobs.iteritems():
+        state = job["job_state"].lower()
+        ncpus = job["num_cpus"]
+        if state == "pending":
+            wtime = float( job["time_limit"] ) / 3600.0
+        elif state == "running":
+            wtime = float( CURR_TIME - job["start_time"] ) / 3600.0
+
+        userid = job["user_id"]
+        if userid not in users.keys():
+            users[userid] = getpwuid(userid)[0]
+            user_summary[users[userid]] = JobsSummary()
+       
+        user_summary[users[userid]].addJob(
+                state,ncpus,wtime
+                )
+
+        cluster.addJob(
+            state,ncpus,wtime
+            )
+    printHeader(title="User Summary")
+    for k,v in sorted(user_summary.iteritems()):
+        print("{user:12s} {data}".format(user=k,data=str(v)))
+    printTotals(total_string = "{summary:12s} {data}".format(summary="TOTAL",data=str(cluster)))
+
+    return 0
+
+def main():
+
+    parser = argparse.ArgumentParser(description="Slurm Job Summary")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-u',action="store_true",help="Summary of user jobs, accounts/qos not considered")
+    group.add_argument('-a',action="store_true",help="Summary of account jobs, users/qos not considered")
+    group.add_argument('-q',action="store_true",help="Summary of qos jobs, users/accounts not considered")
+    group.add_argument('-au',action="store_true",help="Heirarchy for account and user job summary")
+    group.add_argument('-qa',action="store_true",help="Heirarchy for QoS and account job summary")
+    group.add_argument('-qu',action="store_true",help="Heirarchy for QoS and user job summary")
+
+    args = parser.parse_args()
+
+    if args.u == True:
+        return userSummary()
+
+
+if __name__ == "__main__": main()
