@@ -75,7 +75,6 @@ def userSummary(json=False):
     jobs = pyslurm.job().get()
     for id,job in jobs.iteritems():
         state = job["job_state"].lower()
-        print(state,job['job_state'])
         ncpus = job["num_cpus"]
         if state == "pending":
             # Warning: time_limit stored in minutes
