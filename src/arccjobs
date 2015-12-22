@@ -4,6 +4,9 @@
 # in specialized orders like strictly user, account only
 # qos breakdown, etc. 
 #
+# NOTE: There seems to be quite a bit of code repeated since
+# I started suggesting that I could do this better here. 
+#
 
 #
 # Import necessary modules
@@ -64,11 +67,25 @@ def printTotals(total_string = "blah"):
     print(total_string)
     print(CONS_WIDTH*'-')
 
-def printTableHeader(main="Entity",submain="Sub-entity",subsubmain="Sub-Sub-entity"):
-    x = "{entity:22s} {rjobs:>5s} {rcpus:>8s} {rtime:>11s} {pjobs:>5s} {pcpus:>8s} {ptime:>11s}".format(
-        entity=main, 
-        rjobs="rjobs", rcpus="rcpus", rtime="rcpuh", 
-        pjobs="pjobs", pcpus="pcpus", ptime="pcpuh"  )
+def printTableHeader(main="Entity",submain="",subsubmain=""):
+    if "" == submain:
+        x = "{entity:22s} {rjobs:>5s} {rcpus:>8s} {rtime:>11s} {pjobs:>5s} {pcpus:>8s} {ptime:>11s}".format(
+            entity=main, 
+            rjobs="rjobs", rcpus="rcpus", rtime="rcpuh", 
+            pjobs="pjobs", pcpus="pcpus", ptime="pcpuh"  )
+    elif "" == subsubmain:
+        x  = "{entity:22s}\n ".format(entity=main)
+        x += "{subent:21s} {rjobs:>5s} {rcpus:>8s} {rtime:>11s} {pjobs:>5s} {pcpus:>8s} {ptime:>11s}".format(
+                subent=submain,
+                rjobs="rjobs", rcpus="rcpus", rtime="rcpuh",
+                pjobs="pjobs", pcpus="pcpus", ptime="pcpuh"  )
+    else:
+        x  = "{entity:22s}\n {subent:21s}\n  ".format(entity=main,subent=submain)
+        x += "{ssubent:20s} {rjobs:>5s} {rcpus:>8s} {rtime:>11s} {pjobs:>5s} {pcpus:>8s} {ptime:>11s}".format(
+                ssubent=subsubmain,
+                rjobs="rjobs", rcpus="rcpus", rtime="rcpuh",
+                pjobs="pjobs", pcpus="pcpus", ptime="pcpuh"  )
+
 
     print(x)
     print(CONS_WIDTH*'-')
@@ -136,10 +153,65 @@ def acctSummary(json=False):
 
     printHeader(title="Account Job Summary")
     printTableHeader(main="Account")
-    for k,v, in sorted(acct_summary.iteritems()):
+    for k,v in sorted(acct_summary.iteritems()):
         print("{acct:22s} {data}".format(acct=k,data=str(v)))
     printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data=str(cluster)))
     return 0
+
+def qosSummary(json=False):
+
+    cluster = JobsSummary()
+    
+    qos_summary = {}
+
+    jobs = pyslurm.job().get()
+    for id,job in jobs.iteritems():
+        state = job["job_state"].lower()
+        ncpus = job["num_cpus"]
+        if "pending" == state:
+            wtime = float( job["time_limit"] ) / 60.0
+        elif "running" == state:
+            wtime = float( CURR_TIME - job["start_time"] ) / 3600.0
+        wtime *= float( ncpus )
+        qos = job["qos"]
+        if qos not in qos_summary.keys():
+            qos_summary[qos] = JobsSummary()
+        qos_summary[qos].addJob( state, ncpus, wtime )
+
+        cluster.addJob( state, ncpus, wtime )
+
+    printHeader(title="QoS Job Summary")
+    printTableHeader(main="QoS")
+    for k,v in sorted(qos_summary.iteritems()):
+        print("{qos:22s} {data}".format(qos=k,data=str(v)))
+    printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data=str(cluster)))
+    return 0
+
+def auSummary(json=False):
+
+    printHeader(title="Account / User Job Summary")
+    printTableHeader(main="Account",submain="User")
+    print ""
+    printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data="blahblahblah"))
+    return 0
+
+def qaSummary(json=False):
+
+    return 0
+
+def quSummary(json=False):
+
+    return 0
+
+def qauSummary(json=False):
+
+    printHeader(title="QoS / Account / User Job Summary")
+    printTableHeader(main="QoS",submain="Account",subsubmain="User")
+    print ""
+    printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data="blahblahblah"))
+    return 0
+
+    
 
 def main():
 
@@ -151,6 +223,7 @@ def main():
     group.add_argument('-au',action="store_true",help="Heirarchy for account and user job summary")
     group.add_argument('-qa',action="store_true",help="Heirarchy for QoS and account job summary")
     group.add_argument('-qu',action="store_true",help="Heirarchy for QoS and user job summary")
+    group.add_argument('-qau',action="store_true",help="Heirarchy for Qos/Account/User job summary")
 
     args = parser.parse_args()
 
@@ -159,6 +232,15 @@ def main():
 
     if args.a == True:
         return acctSummary()
+
+    if args.q == True:
+        return qosSummary()
+
+    if args.au == True:
+        return auSummary()
+
+    if args.qau == True:
+        return qauSummary()
 
     return userSummary()
 
