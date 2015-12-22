@@ -224,25 +224,32 @@ def main():
     group.add_argument('-qa',action="store_true",help="Heirarchy for QoS and account job summary")
     group.add_argument('-qu',action="store_true",help="Heirarchy for QoS and user job summary")
     group.add_argument('-qau',action="store_true",help="Heirarchy for Qos/Account/User job summary")
+    parser.add_argument('-j',action="store_true",help="TODO: return data in json structures")
 
     args = parser.parse_args()
 
     if args.u == True:
-        return userSummary()
+        return userSummary(json=args.j)
 
     if args.a == True:
-        return acctSummary()
+        return acctSummary(json=args.j)
 
     if args.q == True:
-        return qosSummary()
+        return qosSummary(json=args.j)
 
     if args.au == True:
-        return auSummary()
+        return auSummary(json=args.j)
+
+    if args.qa == True:
+        return qaSummary(json=args.j)
+
+    if args.qu == True:
+        return qaSummary(json=args.j)
 
     if args.qau == True:
-        return qauSummary()
+        return qauSummary(json=args.j)
 
-    return userSummary()
+    return userSummary(json=args.j)
 
 
 if __name__ == "__main__": main()
