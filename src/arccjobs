@@ -1,4 +1,5 @@
 #!/apps/system/python2/2.7.11/bin/python
+#!/usr/bin/env python2
 #
 # New arccjobs command that can summarize running jobs
 # in specialized orders like strictly user, account only
