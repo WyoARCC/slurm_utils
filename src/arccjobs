@@ -7,7 +7,15 @@
 # NOTE: There seems to be quite a bit of code repeated since
 # I started suggesting that I could do this better here. 
 #
-
+#
+# Thoughts:
+#   -   To implement the json, it might be easier to just use basic Python
+#       data structures to avoid other issues. I'm not sure how well a
+#       nested json output might behave.
+#   -   Might need an exception block when getting terminal dims if this
+#       provides web stuff
+#   -   Nested structures for au qa qu qau outputs
+#
 #
 # Import necessary modules
 #
@@ -211,8 +219,6 @@ def qauSummary(json=False):
     printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data="blahblahblah"))
     return 0
 
-    
-
 def main():
 
     parser = argparse.ArgumentParser(description="Slurm Job Summary")
@@ -220,9 +226,9 @@ def main():
     group.add_argument('-u',action="store_true",help="Summary of user jobs, accounts/qos not considered")
     group.add_argument('-a',action="store_true",help="Summary of account jobs, users/qos not considered")
     group.add_argument('-q',action="store_true",help="Summary of qos jobs, users/accounts not considered")
-    group.add_argument('-au',action="store_true",help="Heirarchy for account and user job summary")
-    group.add_argument('-qa',action="store_true",help="Heirarchy for QoS and account job summary")
-    group.add_argument('-qu',action="store_true",help="Heirarchy for QoS and user job summary")
+    group.add_argument('-au',action="store_true",help="Heirarchy for Account/User job summary")
+    group.add_argument('-qa',action="store_true",help="Heirarchy for QoS/Account job summary")
+    group.add_argument('-qu',action="store_true",help="Heirarchy for QoS/User job summary")
     group.add_argument('-qau',action="store_true",help="Heirarchy for Qos/Account/User job summary")
     parser.add_argument('-j',action="store_true",help="TODO: return data in json structures")
 
