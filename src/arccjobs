@@ -1,4 +1,4 @@
-#!/apps/sys/python/python-2.7.8/bin/python
+#!/apps/system/python2/2.7.11/bin/python
 #
 # New arccjobs command that can summarize running jobs
 # in specialized orders like strictly user, account only
@@ -49,7 +49,7 @@ class JobsSummary(object):
         return None
 
     def __str__(self):
-        x = "{rjobs:5d} {rcpus:5d} {rtime:9.2f} {pjobs:5d} {pcpus:5d} {ptime:9.2f}".format(
+        x = "{rjobs:5d} {rcpus:8d} {rtime:11.2f} {pjobs:5d} {pcpus:8d} {ptime:11.2f}".format(
                 rjobs=self.njobs["running"], rcpus=self.ncpus["running"], rtime=self.wtime["running"],
                 pjobs=self.njobs["pending"], pcpus=self.ncpus["pending"], ptime=self.wtime["pending"] )
         return x
@@ -75,11 +75,14 @@ def userSummary(json=False):
     jobs = pyslurm.job().get()
     for id,job in jobs.iteritems():
         state = job["job_state"].lower()
+        print(state,job['job_state'])
         ncpus = job["num_cpus"]
         if state == "pending":
-            wtime = float( job["time_limit"] ) / 3600.0
+            # Warning: time_limit stored in minutes
+            wtime = float( job["time_limit"] ) / 60.0
         elif state == "running":
             wtime = float( CURR_TIME - job["start_time"] ) / 3600.0
+        wtime *= ncpus
 
         userid = job["user_id"]
         if userid not in users.keys():
@@ -95,8 +98,8 @@ def userSummary(json=False):
             )
     printHeader(title="User Summary")
     for k,v in sorted(user_summary.iteritems()):
-        print("{user:12s} {data}".format(user=k,data=str(v)))
-    printTotals(total_string = "{summary:12s} {data}".format(summary="TOTAL",data=str(cluster)))
+        print("{user:22s} {data}".format(user=k,data=str(v)))
+    printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data=str(cluster)))
 
     return 0
 
@@ -115,6 +118,8 @@ def main():
 
     if args.u == True:
         return userSummary()
+
+    return userSummary()
 
 
 if __name__ == "__main__": main()
