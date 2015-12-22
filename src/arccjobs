@@ -31,9 +31,9 @@ CONS_WIDTH -= 1
 # Basic "summary" class for holding the necessary data
 class JobsSummary(object):
     def __init__(self):
-        self.njobs = {"pending":0,"running":0}
-        self.ncpus = {"pending":0,"running":0}
-        self.wtime = {"pending":0,"running":0}
+        self.njobs = {"pending":0,"running":0,"completed":0}
+        self.ncpus = {"pending":0,"running":0,"completed":0}
+        self.wtime = {"pending":0.0,"running":0.0,"completed":0.0}
 
     def addJob(self,state,ncpus,wtime):
         k = state
@@ -64,6 +64,15 @@ def printTotals(total_string = "blah"):
     print(total_string)
     print(CONS_WIDTH*'-')
 
+def printTableHeader(main="Entity",submain="Sub-entity",subsubmain="Sub-Sub-entity"):
+    x = "{entity:22s} {rjobs:>5s} {rcpus:>8s} {rtime:>11s} {pjobs:>5s} {pcpus:>8s} {ptime:>11s}".format(
+        entity=main, 
+        rjobs="rjobs", rcpus="rcpus", rtime="rcpuh", 
+        pjobs="pjobs", pcpus="pcpus", ptime="pcpuh"  )
+
+    print(x)
+    print(CONS_WIDTH*'-')
+
 # This can no be renamed the user summary :)
 def userSummary(json=False):
 
@@ -81,7 +90,7 @@ def userSummary(json=False):
             wtime = float( job["time_limit"] ) / 60.0
         elif state == "running":
             wtime = float( CURR_TIME - job["start_time"] ) / 3600.0
-        wtime *= ncpus
+        wtime *= float(ncpus)
 
         userid = job["user_id"]
         if userid not in users.keys():
@@ -96,10 +105,40 @@ def userSummary(json=False):
             state,ncpus,wtime
             )
     printHeader(title="User Summary")
+    printTableHeader(main="User")
     for k,v in sorted(user_summary.iteritems()):
         print("{user:22s} {data}".format(user=k,data=str(v)))
     printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data=str(cluster)))
 
+    return 0
+
+def acctSummary(json=False):
+
+    cluster = JobsSummary()
+
+    acct_summary = {}
+    
+    jobs = pyslurm.job().get()
+    for id,job in jobs.iteritems():
+        state = job["job_state"].lower()
+        ncpus = job["num_cpus"]
+        if "pending" == state:
+            wtime = float( job["time_limit"] ) / 60.0
+        elif state == "running":
+            wtime = float( CURR_TIME - job["start_time"] ) / 3600.0
+        wtime *= float(ncpus)
+        acct = job["account"]
+        if acct not in acct_summary.keys():
+            acct_summary[acct] = JobsSummary()
+        acct_summary[acct].addJob( state, ncpus, wtime )
+
+        cluster.addJob( state, ncpus, wtime )
+
+    printHeader(title="Account Job Summary")
+    printTableHeader(main="Account")
+    for k,v, in sorted(acct_summary.iteritems()):
+        print("{acct:22s} {data}".format(acct=k,data=str(v)))
+    printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data=str(cluster)))
     return 0
 
 def main():
@@ -117,6 +156,9 @@ def main():
 
     if args.u == True:
         return userSummary()
+
+    if args.a == True:
+        return acctSummary()
 
     return userSummary()
 
