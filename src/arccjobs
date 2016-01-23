@@ -16,6 +16,7 @@
 #       provides web stuff
 #   -   Nested structures for au qa qu qau outputs
 #
+
 #
 # Import necessary modules
 #
@@ -25,6 +26,10 @@ import time
 import argparse
 
 import pyslurm
+
+# Global Variables
+DEBUG=0
+
 
 # Get the current time
 CURR_TIME = int(time.time())
@@ -38,6 +43,29 @@ def terminal_size():
     return w, h
 CONS_WIDTH,CONS_HEIGHT = terminal_size()
 CONS_WIDTH -= 1
+
+# Some wrapper utilities
+def Print(xstring):
+    sys.stdout.write(str(xstring) + '\n')
+    return 0
+
+def PrintWarn(xstring):
+    if 0 < DEBUG:
+        sys.stderr.write("WARNING: msg\n".format(msg=xstring))
+
+def PrintError(xstring):
+    if 0 < DEBUG:
+        sys.stderr.write("ERROR: " + str(xstring) + '\n')
+
+def PrintDebug(xstring,debug=0):
+    if debug <= DEBUG:
+        sys.stderr.write("DEBUG[{lvl}]: {msg}\n".format(lvl=debug,msg=str(xstring)))
+
+def check_state(state):
+    if state in ["completed","timeout"]: 
+        PrintWarn("Job has state {state}".format(state=state))
+        return False
+    return True
 
 # Basic "summary" class for holding the necessary data
 class JobsSummary(object):
@@ -66,14 +94,14 @@ class JobsSummary(object):
         return x
 
 def printHeader(title="blah"):
-    print(CONS_WIDTH*'-')
-    print(title.center(CONS_WIDTH,' '))
-    print(CONS_WIDTH*'-')
+    Print(CONS_WIDTH*'-')
+    Print(title.center(CONS_WIDTH,' '))
+    Print(CONS_WIDTH*'-')
 
 def printTotals(total_string = "blah"):
-    print(CONS_WIDTH*'-')
-    print(total_string)
-    print(CONS_WIDTH*'-')
+    Print(CONS_WIDTH*'-')
+    Print(total_string)
+    Print(CONS_WIDTH*'-')
 
 def printTableHeader(main="Entity",submain="",subsubmain=""):
     if "" == submain:
@@ -95,8 +123,8 @@ def printTableHeader(main="Entity",submain="",subsubmain=""):
                 pjobs="pjobs", pcpus="pcpus", ptime="pcpuh"  )
 
 
-    print(x)
-    print(CONS_WIDTH*'-')
+    Print(x)
+    Print(CONS_WIDTH*'-')
 
 # This can no be renamed the user summary :)
 def userSummary(json=False):
@@ -109,6 +137,8 @@ def userSummary(json=False):
     jobs = pyslurm.job().get()
     for id,job in jobs.iteritems():
         state = job["job_state"].lower()
+        if not check_state(state):
+            continue
         ncpus = job["num_cpus"]
         if state == "pending":
             # Warning: time_limit stored in minutes
@@ -132,7 +162,7 @@ def userSummary(json=False):
     printHeader(title="User Summary")
     printTableHeader(main="User")
     for k,v in sorted(user_summary.iteritems()):
-        print("{user:22s} {data}".format(user=k,data=str(v)))
+        Print("{user:22s} {data}".format(user=k,data=str(v)))
     printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data=str(cluster)))
 
     return 0
@@ -146,6 +176,8 @@ def acctSummary(json=False):
     jobs = pyslurm.job().get()
     for id,job in jobs.iteritems():
         state = job["job_state"].lower()
+        if not check_state(state):
+            continue
         ncpus = job["num_cpus"]
         if "pending" == state:
             wtime = float( job["time_limit"] ) / 60.0
@@ -162,7 +194,7 @@ def acctSummary(json=False):
     printHeader(title="Account Job Summary")
     printTableHeader(main="Account")
     for k,v in sorted(acct_summary.iteritems()):
-        print("{acct:22s} {data}".format(acct=k,data=str(v)))
+        Print("{acct:22s} {data}".format(acct=k,data=str(v)))
     printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data=str(cluster)))
     return 0
 
@@ -175,6 +207,8 @@ def qosSummary(json=False):
     jobs = pyslurm.job().get()
     for id,job in jobs.iteritems():
         state = job["job_state"].lower()
+        if not check_state(state):
+            continue
         ncpus = job["num_cpus"]
         if "pending" == state:
             wtime = float( job["time_limit"] ) / 60.0
@@ -215,47 +249,95 @@ def qauSummary(json=False):
 
     printHeader(title="QoS / Account / User Job Summary")
     printTableHeader(main="QoS",submain="Account",subsubmain="User")
-    print ""
+    Print("")
     printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data="blahblahblah"))
     return 0
 
 def main():
 
-    parser = argparse.ArgumentParser(description="Slurm Job Summary")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('-u',action="store_true",help="Summary of user jobs, accounts/qos not considered")
-    group.add_argument('-a',action="store_true",help="Summary of account jobs, users/qos not considered")
-    group.add_argument('-q',action="store_true",help="Summary of qos jobs, users/accounts not considered")
-    group.add_argument('-au',action="store_true",help="Heirarchy for Account/User job summary")
-    group.add_argument('-qa',action="store_true",help="Heirarchy for QoS/Account job summary")
-    group.add_argument('-qu',action="store_true",help="Heirarchy for QoS/User job summary")
-    group.add_argument('-qau',action="store_true",help="Heirarchy for Qos/Account/User job summary")
-    parser.add_argument('-j',action="store_true",help="TODO: return data in json structures")
+    # Global Refs
+    global DEBUG
+
+    parser = argparse.ArgumentParser(description="Slurm Job Queue Summary")
+
+    # Selective entities
+    parser.add_argument("-A","--account",action="append",default=[],
+        help="Specify certain account only; can be used multiple times.")
+    parser.add_argument("-U","--user",action="append",default=[],
+        help="Specify certain user only; can be used multiple times.")
+    parser.add_argument("-Q","--qos",action="append",default=[],
+        help="Specify certain QoS only; can be used multiple times.")
+
+    # Data Return Type
+    parser.add_argument("-j","--json",action="store_true",default=False,
+        help="Return data in json data structure. (TODO)")
+    parser.add_argument("-l","--long",action="store_true",default=False,
+        help="Return each job rather than a summary. Should opt for squeue with output instead.")
+
+    # Debugging Output
+    parser.add_argument("-D",dest="debug",action="count",default=0,
+        help="Set a level of debugging to stderr.")
+
+    # Sub-Commands
+    submain = parser.add_subparsers(
+        title="Heirarchy Layouts",
+        description="Valid Heirarchy layouts to summarize",
+        help="Heirarchy Options",
+        dest="sp_name")
+    sp_useronly = submain.add_parser("user",
+        help="Summary of user jobs, accounts/qos not considered.")
+    sp_acctonly = submain.add_parser("acct",
+        help="Summary of account jobs, users/qos not considered.")
+    sp_qosonly  = submain.add_parser("qos",
+        help="Summary of QoS jobs, users/accounts not considered.")
+    sp_acctuser = submain.add_parser("acctByUser",
+        help="Heirarchy for Account/User job summary.")
+    sp_qosacct  = submain.add_parser("qosByAcct",
+        help="Heirarchy for QoS/Account job summary")
+    sp_qosuser  = submain.add_parser("qosByUser",
+        help="Heirarchy for QoS/User job summary")
+    sp_full     = submain.add_parser("full",
+        help="Heirarchy for Qos/Account/User job summary")
+    
+    #group = parser.add_mutually_exclusive_group()
+    #group.add_argument('-u',action="store_true",help="Summary of user jobs, accounts/qos not considered")
+    #group.add_argument('-a',action="store_true",help="Summary of account jobs, users/qos not considered")
+    #group.add_argument('-q',action="store_true",help="Summary of qos jobs, users/accounts not considered")
+    #group.add_argument('-au',action="store_true",help="Heirarchy for Account/User job summary")
+    #group.add_argument('-qa',action="store_true",help="Heirarchy for QoS/Account job summary")
+    #group.add_argument('-qu',action="store_true",help="Heirarchy for QoS/User job summary")
+    #group.add_argument('-qau',action="store_true",help="Heirarchy for Qos/Account/User job summary")
+    #parser.add_argument('-j',action="store_true",help="TODO: return data in json structures")
 
     args = parser.parse_args()
 
-    if args.u == True:
-        return userSummary(json=args.j)
+    DEBUG=args.debug
 
-    if args.a == True:
-        return acctSummary(json=args.j)
+    PrintDebug("debugging level set to: {debug}".format(debug=DEBUG),debug=1)
 
-    if args.q == True:
-        return qosSummary(json=args.j)
+    PrintDebug(str(args),debug=1)
+    
+    if args.sp_name == "user":
+        return userSummary(json=args.json)
 
-    if args.au == True:
-        return auSummary(json=args.j)
+    if args.sp_name == "acct":
+        return acctSummary(json=args.json)
 
-    if args.qa == True:
-        return qaSummary(json=args.j)
+    if args.sp_name == "qos":
+        return qosSummary(json=args.json)
 
-    if args.qu == True:
-        return qaSummary(json=args.j)
+    if args.sp_name == "acctByUser":
+        return auSummary(json=args.json)
 
-    if args.qau == True:
-        return qauSummary(json=args.j)
+    if args.sp_name == "qosByUser":
+        return qaSummary(json=args.json)
 
-    return userSummary(json=args.j)
+    if args.sp_name == "qosByAcct":
+        return qaSummary(json=args.json)
 
+    if args.sp_name == "full":
+        return qauSummary(json=args.json)
+
+    return userSummary(json=args.json)
 
 if __name__ == "__main__": main()
