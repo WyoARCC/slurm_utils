@@ -28,6 +28,7 @@ import argparse
 import pyslurm
 
 # Global Variables
+CLUSTER="Slurm"
 DEBUG=0
 
 
@@ -62,7 +63,7 @@ def PrintDebug(xstring,debug=0):
         sys.stderr.write("DEBUG[{lvl}]: {msg}\n".format(lvl=debug,msg=str(xstring)))
 
 def check_state(state):
-    if state in ["completed","timeout"]: 
+    if state in ["cancelled","completed","failed","timeout"]: 
         PrintWarn("Job has state {state}".format(state=state))
         return False
     return True
@@ -159,7 +160,7 @@ def userSummary(json=False):
         cluster.addJob(
             state,ncpus,wtime
             )
-    printHeader(title="User Summary")
+    printHeader(title="{cluster} User Job Summary".format(cluster=CLUSTER))
     printTableHeader(main="User")
     for k,v in sorted(user_summary.iteritems()):
         Print("{user:22s} {data}".format(user=k,data=str(v)))
@@ -191,7 +192,7 @@ def acctSummary(json=False):
 
         cluster.addJob( state, ncpus, wtime )
 
-    printHeader(title="Account Job Summary")
+    printHeader(title="{cluster} Account Job Summary".format(cluster=CLUSTER))
     printTableHeader(main="Account")
     for k,v in sorted(acct_summary.iteritems()):
         Print("{acct:22s} {data}".format(acct=k,data=str(v)))
@@ -222,7 +223,7 @@ def qosSummary(json=False):
 
         cluster.addJob( state, ncpus, wtime )
 
-    printHeader(title="QoS Job Summary")
+    printHeader(title="{cluster} QoS Job Summary".format(cluster=CLUSTER))
     printTableHeader(main="QoS")
     for k,v in sorted(qos_summary.iteritems()):
         print("{qos:22s} {data}".format(qos=k,data=str(v)))
@@ -231,7 +232,7 @@ def qosSummary(json=False):
 
 def auSummary(json=False):
 
-    printHeader(title="Account / User Job Summary")
+    printHeader(title="{cluster} Account / User Job Summary".format(cluster=CLUSTER))
     printTableHeader(main="Account",submain="User")
     print ""
     printTotals(total_string = "{summary:22s} {data}".format(summary="TOTAL",data="blahblahblah"))
@@ -257,6 +258,7 @@ def main():
 
     # Global Refs
     global DEBUG
+    global CLUSTER
 
     parser = argparse.ArgumentParser(description="Slurm Job Queue Summary")
 
@@ -277,6 +279,8 @@ def main():
     # Debugging Output
     parser.add_argument("-D",dest="debug",action="count",default=0,
         help="Set a level of debugging to stderr.")
+
+    #parser.add_argument("sp",dest="default_sp_name",default="user",nargs=1);
 
     # Sub-Commands
     submain = parser.add_subparsers(
@@ -308,7 +312,13 @@ def main():
     #group.add_argument('-qu',action="store_true",help="Heirarchy for QoS/User job summary")
     #group.add_argument('-qau',action="store_true",help="Heirarchy for Qos/Account/User job summary")
     #parser.add_argument('-j',action="store_true",help="TODO: return data in json structures")
+    
+    # Implement a crappy,feature missing workaround for a default subparser
+    # Think about redoing the class to fix this in Python < 3.3
+    if 1 == len(sys.argv):
+        return userSummary(json=False)
 
+    # Run traditional parser.
     args = parser.parse_args()
 
     DEBUG=args.debug
@@ -316,6 +326,10 @@ def main():
     PrintDebug("debugging level set to: {debug}".format(debug=DEBUG),debug=1)
 
     PrintDebug(str(args),debug=1)
+
+    slurm_config = pyslurm.config().get()
+    if CLUSTER.lower() != slurm_config["cluster_name"]: 
+        CLUSTER=slurm_config["cluster_name"]
     
     if args.sp_name == "user":
         return userSummary(json=args.json)
